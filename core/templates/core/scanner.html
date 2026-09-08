@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini-SIEM Real-Time SOC :: Elidiane</title>
+    <style>
+        :root {
+            --bg-dark: #0b071e;
+            --card-bg: rgba(26, 15, 53, 0.9);
+            --purple-primary: #9d4edd;
+            --purple-light: #c77dff;
+            --neon-green: #00ff66;
+            --neon-pink: #ff007f;
+            --text-color: #e0aaff;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 950px;
+            background: var(--card-bg);
+            border: 2px solid var(--purple-primary);
+            box-shadow: 0 0 30px rgba(157, 78, 221, 0.5);
+            border-radius: 12px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        h2, h3 {
+            text-align: center;
+            color: var(--purple-light);
+            text-shadow: 0 0 10px rgba(199, 125, 255, 0.5);
+        }
+
+        .status-tempo-real {
+            text-align: center;
+            font-size: 12px;
+            color: var(--neon-green);
+            margin-bottom: 20px;
+        }
+
+        /* ALERTA COM O ROSA PISCANDO ORIGINAL */
+        .alert-box {
+            background: rgba(255, 0, 127, 0.3);
+            border: 2px solid var(--neon-pink);
+            padding: 14px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 20px var(--neon-pink);
+            animation: piscar 0.4s infinite alternate;
+        }
+
+        @keyframes piscar {
+            from { background: rgba(255, 0, 127, 0.2); }
+            to { background: rgba(255, 0, 127, 0.7); }
+        }
+
+        #modal-ia {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 7, 30, 0.92);
+            backdrop-filter: blur(6px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #150b36;
+            border: 2px solid var(--purple-light);
+            box-shadow: 0 0 40px rgba(199, 125, 255, 0.4);
+            border-radius: 10px;
+            width: 90%;
+            max-width: 750px;
+            max-height: 88vh;
+            overflow-y: auto;
+            padding: 25px;
+            color: var(--text-color);
+        }
+
+        .ia-texto-detalhado {
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-line;
+            background: rgba(11, 7, 30, 0.8);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid var(--neon-pink);
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .chat-box {
+            margin-top: 15px;
+            background: rgba(11, 7, 30, 0.5);
+            border: 1px dashed var(--purple-primary);
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .input-chat {
+            width: 100%;
+            background: #0b071e;
+            border: 1px solid var(--purple-primary);
+            color: var(--text-color);
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+            margin-top: 5px;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 50px;
+        }
+
+        .btn-acao {
+            background: var(--purple-primary);
+            color: #0b071e;
+            border: none;
+            padding: 8px 14px;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: 0.2s;
+        }
+
+        .btn-acao:hover {
+            background: var(--purple-light);
+        }
+
+        .btn-fechar {
+            background: var(--neon-pink);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            font-weight: bold;
+            font-family: inherit;
+            border-radius: 4px;
+            cursor: pointer;
+            float: right;
+            margin-top: 15px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--purple-primary) var(--bg-dark);
+        }
+        ul::-webkit-scrollbar { width: 6px; }
+        ul::-webkit-scrollbar-track { background: var(--bg-dark); border-radius: 4px; }
+        ul::-webkit-scrollbar-thumb { background-color: var(--purple-primary); border-radius: 4px; }
+
+        li {
+            padding: 6px 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            background: rgba(11, 7, 30, 0.6);
+            border-left: 4px solid var(--purple-primary);
+            font-size: 12px;
+        }
+
+        .grid-results { display: flex; gap: 20px; margin-top: 10px; }
+        .column { flex: 1; }
+
+        .history-box {
+            margin-top: 25px;
+            border-top: 1px dashed var(--purple-primary);
+            padding-top: 15px;
+            font-size: 12px;
+        }
+        .history-item { color: #b5838d; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="modal-ia">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-pink);">⚡ PAINEL DE COMANDOS E SUPORTE RÁPIDO (SOC)</h3>
+            
+            <p style="font-size: 12px; color: var(--purple-light); margin-bottom: 5px;">📋 Diagnóstico Automático e Comandos de Contenção:</p>
+            <div id="conteudo-modal-ia" class="ia-texto-detalhado">Carregando análise da nuvem...</div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-acao" style="flex: 1; font-size: 11px;" onclick="forçarReanaliseIncidente('gemini')">🔄 Tentar Novamente (Gemini Nuvem)</button>
+                <button class="btn-acao" style="flex: 1; font-size: 11px; background: #24144d; border: 1px solid var(--purple-primary); color: var(--purple-light);" onclick="forçarReanaliseIncidente('ollama')">🛡️ Alternar para Ollama (Local)</button>
+            </div>
+
+            <div class="chat-box">
+                <p style="font-size: 12px; color: var(--neon-green); margin: 0; font-weight: bold;">💬 Copilot SOC (Dúvidas ou erros no terminal):</p>
+                <textarea id="input-erro-terminal" class="input-chat" placeholder="Ex: O comando Get-Process retornou Acesso Negado..."></textarea>
+                
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <button class="btn-acao" style="flex: 1;" onclick="enviarErroCopilot('gemini')">Perguntar ao Gemini</button>
+                    <button class="btn-acao" style="flex: 1; background: #24144d; border: 1px solid var(--purple-primary); color: var(--purple-light);" onclick="enviarErroCopilot('ollama')">Perguntar ao Ollama</button>
+                </div>
+                <div id="resposta-chat-ia" style="font-size: 12px; margin-top: 10px; white-space: pre-line; color: var(--text-color);"></div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label style="font-size: 12px; color: var(--purple-light);">📝 Observação de Conclusão / Dificuldade:</label>
+                <input type="text" id="input-dificuldade" class="input-chat" style="min-height: 35px;" placeholder="Ex: Requerido PowerShell Admin">
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button class="btn-acao" style="flex: 1;" onclick="concluirIncidente('gemini')">✅ Concluir via Gemini</button>
+                    <button class="btn-acao" style="flex: 1; background: #24144d; border: 1px solid var(--purple-primary); color: var(--purple-light);" onclick="concluirIncidente('ollama')">✅ Concluir via Ollama</button>
+                </div>
+
+                <button class="btn-fechar" onclick="fecharJanelaIA()">Minimizar</button>
+                <div style="clear: both;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🛡️ MINI-SIEM REAL-TIME SOC :: Elidiane</h2>
+        <div class="status-tempo-real">🟢 Conectado ao Backend Python (Redundância Automática)</div>
+        
+        <div id="container-alerta"></div>
+
+        <button onclick="forçarSimulacaoCritica()" style="display: block; width: 100%; background: linear-gradient(135deg, var(--purple-primary), var(--neon-pink)); color: white; border: none; padding: 12px; font-size: 14px; font-weight: bold; font-family: inherit; border-radius: 6px; cursor: pointer; box-shadow: 0 0 15px rgba(255, 0, 127, 0.4); margin-bottom: 20px; transition: 0.3s;">
+            ⚡ SIMULAR INCIDENTE CRÍTICO (AÇÃO AUTOMÁTICA NUVEM)
+        </button>
+
+        <div class="grid-results">
+            <div class="column">
+                <h3>Status das Portas:</h3>
+                <ul id="lista-portas"><li>Carregando status das portas...</li></ul>
+            </div>
+
+            <div class="column">
+                <h3>Conexões de Rede (Cliente-Servidor):</h3>
+                <ul id="lista-conexoes"><li>Mapeando conexões ativas...</li></ul>
+            </div>
+        </div>
+
+        <div class="history-box">
+            <h3>Trilha de Auditoria (Banco de Dados):</h3>
+            {% if historico %}
+                {% for h in historico %}
+                    <div class="history-item">🕒 <strong>{{ h.data_hora|date:"d/m/Y H:i:s" }}</strong> - {{ h.detalhes }}</div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: var(--purple-primary);">Nenhum evento registrado ainda.</p>
+            {% endif %}
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; border-top: 1px dashed var(--purple-primary); padding-top: 15px; font-size: 11px; color: var(--purple-light);">
+                🔒 Copyright © 2026 Elidiane da Silva Santos. Todos os direitos reservados.
+        </div>
+    </div>
+
+
+    <script>
+        let alarmeTocado = false;
+        let incidenteAtualTexto = "";
+
+        function buscarDadosTempoReal() {
+            fetch('/api/dados/')
+                .then(response => response.json())
+                .then(data => {
+                    const listaPortas = document.getElementById('lista-portas');
+                    listaPortas.innerHTML = '';
+                    data.portas.forEach(porta => {
+                        let li = document.createElement('li');
+                        li.textContent = porta;
+                        li.style.borderColor = porta.includes('ABERTA') ? '#00ff66' : '#ff007f';
+                        li.style.color = porta.includes('ABERTA') ? '#00ff66' : '#c77dff';
+                        listaPortas.appendChild(li);
+                    });
+
+                    const listaConexoes = document.getElementById('lista-conexoes');
+                    listaConexoes.innerHTML = '';
+                    data.conexoes.forEach(conn => {
+                        let li = document.createElement('li');
+                        li.style.borderColor = '#c77dff';
+                        li.style.color = '#e0aaff';
+                        li.textContent = '🌐 ' + conn;
+                        listaConexoes.appendChild(li);
+                    });
+
+                    const containerAlerta = document.getElementById('container-alerta');
+                    
+                    if (data.alerta || window.alertaManualAtivo) {
+                        let textoAlertaExibido = data.alerta || incidenteAtualTexto;
+                        if (data.alerta && !window.alertaManualAtivo) {
+                            incidenteAtualTexto = data.alerta;
+                        }
+                        
+                        containerAlerta.innerHTML = `
+                            <div class="alert-box">
+                                🚨 INCIDENTE CRÍTICO DETECTADO: <br>${textoAlertaExibido}<br>
+                                <div style="display: flex; gap: 10px; justify-content: center; margin-top: 12px;">
+                                    <button onclick="abrirJanelaIAComAnaliseAutomaticia('${textoAlertaExibido}')" style="background: var(--neon-green); color: #0b071e; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; font-family: inherit;">🛡️ Painel de Mitigação (IA)</button>
+                                    <button onclick="limparAlertaManual()" style="background: var(--purple-primary); color: #0b071e; border: none; padding: 6px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; font-family: inherit;">✅ Marcar como Resolvido</button>
+                                </div>
+                            </div>`;
+
+                        if (!alarmeTocado) {
+                            tocarSireneReal();
+                            alarmeTocado = true;
+                        }
+                    } else {
+                        containerAlerta.innerHTML = `<div style="background: rgba(0,255,102,0.1); border: 1px solid var(--neon-green); padding: 10px; border-radius: 6px; color: var(--neon-green); text-align: center; font-size: 13px;">✅ Sistema Estável. CPU em ${data.cpu}% | Monitorando tráfego.</div>`;
+                        alarmeTocado = false;
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar dados:', error));
+        }
+
+        setInterval(buscarDadosTempoReal, 2000);
+        buscarDadosTempoReal();
+
+        function tocarSireneReal() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                let tempoInicio = audioCtx.currentTime;
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.type = 'sine';
+                for (let i = 0; i < 10; i++) {
+                    let startTime = tempoInicio + (i * 0.3);
+                    osc.frequency.setValueAtTime(350, startTime);
+                    osc.frequency.linearRampToValueAtTime(1300, startTime + 0.15);
+                    osc.frequency.linearRampToValueAtTime(350, startTime + 0.3);
+                }
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0.4, tempoInicio);
+                osc.start(tempoInicio);
+                osc.stop(tempoInicio + 3.0);
+            } catch (e) {
+                console.log("Áudio aguardando interação.");
+            }
+        }
+
+        function forçarSimulacaoCritica() {
+            window.alertaManualAtivo = true;
+            tocarSireneReal();
+            incidenteAtualTexto = "Simulação Manual de Ataque Crítico de CPU (32.5%)";
+            
+            document.getElementById('conteudo-modal-ia').innerHTML = "🤖 [AUTOMÁTICO] Acionando Gemini Nuvem para análise imediata...";
+            document.getElementById('modal-ia').style.display = 'flex';
+
+            executarRequisicaoAnalise('gemini', incidenteAtualTexto);
+        }
+
+        function abrirJanelaIAComAnaliseAutomaticia(textoAlerta) {
+            incidenteAtualTexto = textoAlerta;
+            document.getElementById('conteudo-modal-ia').innerHTML = "🤖 [AUTOMÁTICO] Acionando Gemini Nuvem para análise imediata...";
+            document.getElementById('modal-ia').style.display = 'flex';
+            executarRequisicaoAnalise('gemini', textoAlerta);
+        }
+
+        function executarRequisicaoAnalise(motor, textoIncidente) {
+            const caixaTexto = document.getElementById('conteudo-modal-ia');
+            caixaTexto.innerHTML = `🔄 Processando via [${motor.toUpperCase()}... Aguarde a resposta do SOC]`;
+
+            fetch('/api/dados/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    acao: 'analisar_incidente',
+                    motor: motor,
+                    incidente: textoIncidente
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    caixaTexto.innerHTML = data.resposta_ia;
+                } else {
+                    caixaTexto.innerHTML = `<span style="color: var(--neon-pink);">Erro ao processar: ${data.mensagem}</span>`;
+                }
+            })
+            .catch(err => {
+                caixaTexto.innerHTML = `<span style="color: var(--neon-pink);">Erro de conexão: ${err.message}. Verifique se o servidor local ou Ollama está ativo.</span>`;
+            });
+        }
+
+        function forçarReanaliseIncidente(motor) {
+            executarRequisicaoAnalise(motor, incidenteAtualTexto);
+        }
+
+        function enviarErroCopilot(motor) {
+            const erroInput = document.getElementById('input-erro-terminal').value;
+            if (!erroInput) {
+                alert("Por favor, cole o erro real retornado pelo seu terminal.");
+                return;
+            }
+
+            const caixaResposta = document.getElementById('resposta-chat-ia');
+            caixaResposta.innerHTML = `🤖 Consultando [${motor.toUpperCase()}]...`;
+
+            fetch('/api/dados/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    acao: 'corrigir_erro',
+                    motor: motor,
+                    erro: erroInput
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    caixaResposta.innerHTML = "<strong>💡 Resposta:</strong><br>" + data.resposta_ia;
+                } else {
+                    caixaResposta.innerHTML = `<span style="color: var(--neon-pink);">Erro: ${data.mensagem}</span>`;
+                }
+            })
+            .catch(err => {
+                caixaResposta.innerHTML = `<span style="color: var(--neon-pink);">Erro: ${err.message}</span>`;
+            });
+        }
+
+        function concluirIncidente(motor) {
+            const dificuldade = document.getElementById('input-dificuldade').value || "Nenhuma observação registrada.";
+            document.getElementById('conteudo-modal-ia').innerHTML = `🔄 Gerando relatório via [${motor.toUpperCase()}]...`;
+
+            fetch('/api/dados/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    acao: 'concluir',
+                    motor: motor,
+                    dificuldade: dificuldade,
+                    incidente: incidenteAtualTexto
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    let novaAba = window.open('', '_blank');
+                    novaAba.document.write(`
+                        <html>
+                        <head>
+                            <title>Relatórios de Fechamento :: SIEM</title>
+                            <style>
+                                body { font-family: 'Courier New', monospace; background: #0b071e; color: #e0aaff; padding: 40px; line-height: 1.6; }
+                                .box { background: #150b36; border: 2px solid #9d4edd; padding: 30px; border-radius: 10px; box-shadow: 0 0 30px rgba(157,78,221,0.4); max-width: 850px; margin: auto; }
+                                h2 { color: #00ff66; text-align: center; }
+                                hr { border-color: #9d4edd; margin: 20px 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="box">
+                                <h2>🛡️ PAINEL DE FECHAMENTO E COMUNICAÇÃO DE INCIDENTE</h2>
+                                <hr>
+                                <pre style="white-space: pre-wrap; font-family: inherit;">${data.documentacao}</pre>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                    novaAba.document.close();
+                    limparAlertaManual();
+                } else {
+                    alert("Erro ao gerar relatórios: " + data.mensagem);
+                }
+            });
+        }
+
+        function abrirJanelaIA() { document.getElementById('modal-ia').style.display = 'flex'; }
+        function fecharJanelaIA() { document.getElementById('modal-ia').style.display = 'none'; }
+        
+        function limparAlertaManual() {
+            window.alertaManualAtivo = false;
+            document.getElementById('container-alerta').innerHTML = '';
+            document.getElementById('input-erro-terminal').value = '';
+            document.getElementById('resposta-chat-ia').innerHTML = '';
+            fecharJanelaIA();
+            location.reload();
+        }
+    </script>
+
+</body>
+</html>
